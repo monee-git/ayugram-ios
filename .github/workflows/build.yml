@@ -53,6 +53,8 @@ jobs:
           c = json.load(open("build-system/appstore-configuration.json"))
           c["api_id"] = os.environ["API_ID"]
           c["api_hash"] = os.environ["API_HASH"]
+          c["enable_icloud"] = False
+          c["enable_siri"] = False
           json.dump(c, open("build-system/my-configuration.json", "w"), indent=2)
           EOF
 
