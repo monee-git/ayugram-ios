@@ -35,7 +35,14 @@ jobs:
           c["api_hash"] = os.environ["API_HASH"]
           json.dump(c, open("build-system/my-configuration.json", "w"), indent=2)
           EOF
-          python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
+          python3 - <<'EOF'
+          p = "build-system/Make/Make.py"
+          s = open(p).read()
+          a = "    bazel_command_line.set_profile_swift(arguments.profileSwift)\n"
+          assert s.count(a) == 1
+          s = s.replace(a, a + "    bazel_command_line.set_disable_provisioning_profiles()\n")
+          open(p, "w").write(s)
+          EOF
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot=/private/var/tmp/_bazel_containerhost \
             build \
