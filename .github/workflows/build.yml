@@ -29,18 +29,22 @@ jobs:
         run: |
           cd /Users/Shared/telegram-ios
           python3 - <<'EOF'
-          import json, os, glob
+          import json, os
           c = json.load(open("build-system/appstore-configuration.json"))
           c["api_id"] = os.environ["API_ID"]
           c["api_hash"] = os.environ["API_HASH"]
           json.dump(c, open("build-system/my-configuration.json", "w"), indent=2)
-          # fake profiles expired on 2026-10-30; extend the date in place (same length)
-          old, new = b"2026-10-30T17:06:30Z", b"2036-10-30T17:06:30Z"
-          for p in glob.glob("build-system/fake-codesigning/profiles/*.mobileprovision"):
-              b = open(p, "rb").read()
-              assert old in b, p
-              open(p, "wb").write(b.replace(old, new))
           EOF
+
+          O=/usr/bin/openssl
+          $O req -x509 -newkey rsa:2048 -nodes -keyout /tmp/k.pem -out /tmp/c.pem -days 3650 -subj "/CN=resign"
+          for f in build-system/fake-codesigning/profiles/*.mobileprovision; do
+            $O smime -inform der -verify -noverify -in "$f" -out /tmp/p.xml
+            sed 's/2026-10-30T17:06:30Z/2036-10-30T17:06:30Z/' /tmp/p.xml > /tmp/p2.xml
+            $O smime -sign -signer /tmp/c.pem -inkey /tmp/k.pem -outform der -nodetach -binary -in /tmp/p2.xml -out /tmp/new.mp
+            mv /tmp/new.mp "$f"
+          done
+
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot=/private/var/tmp/_bazel_containerhost \
