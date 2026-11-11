@@ -22,6 +22,37 @@ jobs:
           sudo mkdir -p /Users/Shared
           cp -R "$GITHUB_WORKSPACE" /Users/Shared/telegram-ios
 
+name: Build IPA
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Select Xcode
+        run: |
+          V=$(python3 -c 'import json;print(json.load(open("versions.json"))["xcode"])')
+          sudo xcode-select -s /Applications/Xcode_$V.app/Contents/Developer
+
+      - name: Canonical source dir
+        run: |
+          sudo mkdir -p /Users/Shared
+          cp -R "$GITHUB_WORKSPACE" /Users/Shared/telegram-ios
+
+      - name: Restore Bazel cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /Users/Shared/bazel-cache
+          key: bazel-${{ github.sha }}
+          restore-keys: bazel-
+
       - name: Build
         env:
           API_ID: ${{ secrets.TG_API_ID }}
@@ -36,6 +67,7 @@ jobs:
           json.dump(c, open("build-system/my-configuration.json", "w"), indent=2)
           EOF
 
+          # fake profiles expired on 2026-10-30: extend the date and re-sign them
           O=/usr/bin/openssl
           $O req -x509 -newkey rsa:2048 -nodes -keyout /tmp/k.pem -out /tmp/c.pem -days 3650 -subj "/CN=resign"
           for f in build-system/fake-codesigning/profiles/*.mobileprovision; do
@@ -47,14 +79,29 @@ jobs:
 
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
           python3 -u build-system/Make/Make.py \
+            --cacheDir=/Users/Shared/bazel-cache \
             --bazelUserRoot=/private/var/tmp/_bazel_containerhost \
             build \
             --configurationPath=build-system/my-configuration.json \
             --codesigningInformationPath=build-system/fake-codesigning \
             --configuration=release_arm64 \
             --buildNumber=1
+
           mkdir -p /Users/Shared/out
-          cp bazel-out/applebin_ios-ios_arm*-opt-ST-*/bin/Telegram/Telegram.ipa /Users/Shared/out/
+          IPA=$(find -L bazel-bin/Telegram -maxdepth 1 -name Telegram.ipa | head -1)
+          if [ -z "$IPA" ]; then
+            IPA=$(find -L bazel-out -name Telegram.ipa -not -path "*/external/*" | head -1)
+          fi
+          echo "IPA found at: $IPA"
+          test -n "$IPA"
+          cp -L "$IPA" /Users/Shared/out/Telegram.ipa
+
+      - name: Save Bazel cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: /Users/Shared/bazel-cache
+          key: bazel-${{ github.sha }}
 
       - uses: actions/upload-artifact@v4
         with:
