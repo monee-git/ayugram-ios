@@ -36,6 +36,19 @@ jobs:
         run: |
           cd /Users/Shared/telegram-ios
           python3 - <<'EOF'
+          p = "submodules/TelegramUI/Sources/AppDelegate.swift"
+          s = open(p).read()
+          old = "let maybeAppGroupUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName)"
+          new = '''let maybeAppGroupUrl: URL? = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName) ?? {
+              guard let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
+              let url = base.appendingPathComponent("group-fallback", isDirectory: true)
+              try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+              return url
+          }()'''
+          assert old in s, "pattern not found"
+          open(p, "w").write(s.replace(old, new, 1))
+          EOF
+          python3 - <<'EOF'
           import json, os
           c = json.load(open("build-system/appstore-configuration.json"))
           c["api_id"] = os.environ["API_ID"]
