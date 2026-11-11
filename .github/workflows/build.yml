@@ -22,30 +22,6 @@ jobs:
           sudo mkdir -p /Users/Shared
           cp -R "$GITHUB_WORKSPACE" /Users/Shared/telegram-ios
 
-name: Build IPA
-on:
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: macos-26
-    timeout-minutes: 360
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Select Xcode
-        run: |
-          V=$(python3 -c 'import json;print(json.load(open("versions.json"))["xcode"])')
-          sudo xcode-select -s /Applications/Xcode_$V.app/Contents/Developer
-
-      - name: Canonical source dir
-        run: |
-          sudo mkdir -p /Users/Shared
-          cp -R "$GITHUB_WORKSPACE" /Users/Shared/telegram-ios
-
       - name: Restore Bazel cache
         uses: actions/cache/restore@v4
         with:
